@@ -1,0 +1,22 @@
+# виртуальное окружение
+venv/
+.venv/
+env/
+ENV/
+
+# кэш питона
+__pycache__/
+*.py[cod]
+*.pyo
+
+# папки IDE
+.idea/
+.vscode/
+
+# система
+.DS_Store
+Thumbs.db
+
+# прочее
+*.log
+*.tmp
