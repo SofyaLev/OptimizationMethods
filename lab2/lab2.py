@@ -173,13 +173,19 @@ def plot_result(W, a, b, result, L, title="метод Пиявского"):
         ax.plot(x_plot, g_plot, 'g-', linewidth=0.5, alpha=0.3)
 
     # верхние вершины (точки, где вычислялась функция)
-    ax.scatter(u_list, W_list, color='green', s=50,
+    ax.scatter(u_list, W_list, color='green', s=5, alpha=0.5,
                zorder=5, label='верхние вершины u_i')
 
     # найденный минимум
-    ax.scatter([result['u_min']], [result['W_min']], color='red', s=80,
-               edgecolors='black', linewidths=1.2, zorder=6,
+    ax.scatter([result['u_min']], [result['W_min']], color='red', s=40,
+               edgecolors='black', linewidths=0.6, zorder=6,
                label=f'минимум: ({result["u_min"]:.4f}, {result["W_min"]:.4f})')
+
+    # ограничиваем ось Y по значениям функции, а не по галочкам
+    y_min = min(result['W_list'])
+    y_max = max(result['W_list'])
+    margin = (y_max - y_min) * 0.2 + 0.5
+    ax.set_ylim(y_min - margin, y_max + margin)
 
     ax.set_title(title)
     ax.set_xlabel('x')
@@ -198,12 +204,17 @@ TESTS = [
     {
         "name": "Растригин",
         "expr": "10 + (x - 1)**2 - 10*cos(2*pi*x)",
-        "a": -5.12, "b": 5.12,
+        "a": -2.0, "b": 3.0,
     },
     {
         "name": "Экли",
         "expr": "cos(x) * exp(-(x - pi)**2)",
         "a": 0.0, "b": 10.0,
+    },
+{
+        "name": "Из задания",
+        "expr": "x + sin(3.14159*x)",
+        "a": -2.0, "b": 2.0,
     },
 ]
 
