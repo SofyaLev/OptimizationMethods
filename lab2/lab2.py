@@ -40,6 +40,14 @@ def find_min_p(u_list, W_list, L):
 
     return best_u, best_val
 
+def evaluate_l(W, a, b, n=5000, k=1.2):
+    """ оценка константы Липшица """
+
+    xs = np.linspace(a, b, n)               # x_i
+    ys = np.array([W(x) for x in xs])       # f(x_i)
+    slopes = np.abs(np.diff(ys) / np.diff(xs)) # |f(x_{i+1}) - f(x_i)| / |x_{i+1} - x_i|
+
+    return float(np.max(slopes)) * k        # max(...) * k
 
 # ----- основной алгоритм -----
 
@@ -108,7 +116,10 @@ def choose_function():
 
     if 1 <= n <= len(TESTS):
         t = TESTS[n - 1]
-        return make_function(t["expr"]), t["a"], t["b"], t["L"], t["name"]
+        W = make_function(t["expr"])
+        L = evaluate_l(W, t["a"], t["b"])
+        print(f"Оцененная L = {L:.4f}")
+        return W, t["a"], t["b"], L, t["name"]
 
     if n == len(TESTS) + 1:
         # своя функция - вводим выражение и параметры вручную
@@ -118,10 +129,8 @@ def choose_function():
         if a >= b:
             print("ошибка: a должно быть меньше b")
             return choose_function()
-        L = float(input("L = "))
-        if L <= 0:
-            print("ошибка: L должно быть положительным")
-            return choose_function()
+        L = evaluate_l(W, a, b)
+        print(f"Оцененная L = {L:.4f}")
         return W, a, b, L, "своя функция"
 
     print("такого номера нет, попробуйте ещё раз")
@@ -182,19 +191,19 @@ def plot_result(W, a, b, result, L, title="метод Пиявского"):
 
 
 # ----- данные для тестовых функций -----
-# каждая функция задана выражением expr, отрезком [a, b] и константой Липшица L
+# каждая функция задана выражением expr, отрезком [a, b]
 # чтобы добавить новую функцию, просто дописываем словарь в список
 
 TESTS = [
     {
         "name": "Растригин",
         "expr": "10 + (x - 1)**2 - 10*cos(2*pi*x)",
-        "a": -5.12, "b": 5.12, "L": 70.0,
+        "a": -5.12, "b": 5.12,
     },
     {
         "name": "Экли",
         "expr": "cos(x) * exp(-(x - pi)**2)",
-        "a": 0.0, "b": 10.0, "L": 2.0,
+        "a": 0.0, "b": 10.0,
     },
 ]
 
@@ -251,7 +260,7 @@ def main():
 
     print(f"\nфункция: {name}")
     print(f"отрезок: [{a}, {b}]")
-    print(f"L = {L}, eps = {eps}")
+    print(f"L = {L:.4f}, eps = {eps}")
 
     result = pyavsky(W, a, b, eps, L)
 
