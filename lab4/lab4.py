@@ -237,6 +237,14 @@ def expected_multipliers(stage):
 # Функция Беллмана для последнего этапа (k = 3)
 # ---------------------------------------------
 
+def strictly_between_fee_thresholds(means):
+    """ проверяет, что множители лежат строго между порогами комиссии """
+    return all(
+        1.0 - fee + EPS < mean < 1.0 + fee - EPS
+        for mean, fee in zip(means, FEES)
+    )
+
+
 def terminal_stage_value(state):
     """
     оптимум последнего этапа (k = 3)
@@ -253,11 +261,7 @@ def terminal_stage_value(state):
     means = expected_multipliers(2)
 
     # проверяем, что бездействие строго оптимально
-    no_trade_is_optimal = all(
-        (means[i] < 1.0 + FEES[i] - EPS) and
-        (means[i] > 1.0 - FEES[i] + EPS)
-        for i in range(3)
-    )
+    no_trade_is_optimal = strictly_between_fee_thresholds(means)
     if no_trade_is_optimal:
         # ожидаемая стоимость без сделок - просто линейная комбинация
         expected = sum(state[i] * means[i] for i in range(3)) + state[3]
@@ -305,15 +309,16 @@ def bellman(stage, state):
     # на этапе 2 можно отсечь заведомо невыгодные сделки (см. make_actions),
     # так как после него остается только этап 3, где делать что-либо невыгодно -> продолжение линейно по объемам
     # если USE_PRUNING = False - перебираем все допустимые управления
+    factors = None
     if stage == 1 and USE_PRUNING:
-        factors = tuple(
-            expected_multipliers(1)[i] * expected_multipliers(2)[i]
-            for i in range(3)
-        )
-        candidates = make_actions(state, profitable_factors=factors)
-    else:
-        # на первом этапе или при выключенном отсечении перебираем все допустимые действия
-        candidates = make_actions(state)
+        terminal_means = expected_multipliers(2)
+        combined = tuple(a * b for a, b in zip(expected_multipliers(1), terminal_means))
+        # если выгодных или равноценных покупок нет, выручка для покупок не нужна
+        if strictly_between_fee_thresholds(terminal_means) and all(
+            factor < 1.0 + fee - EPS for factor, fee in zip(combined, FEES)
+        ):
+            factors = combined
+    candidates = make_actions(state, profitable_factors=factors)
 
     # перебираем допустимые управления текущего этапа
     for traded_state, u in candidates:

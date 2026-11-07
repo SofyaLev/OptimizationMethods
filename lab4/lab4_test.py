@@ -1,4 +1,5 @@
 import math
+from itertools import product
 
 import pytest
 
@@ -137,3 +138,81 @@ def test_pruning_matches_full_enumeration_for_sample_state(monkeypatch):
 
     assert pruned_value == pytest.approx(full_value, abs=1e-8)
     assert pruned_actions == full_actions
+
+
+def exhaustive_portfolio(stage, state, lots, fees, minimums, scenarios):
+    """ считает оптимум полным перебором на малом примере """
+    if stage == len(scenarios):
+        return sum(state), set()
+
+    assets, cash = state[:3], state[3]
+    # стоимость портфеля ограничивает число пакетов для любой сделки
+    bounds = [int(sum(state) // lot) for lot in lots]
+    best_value = -math.inf
+    best_actions = set()
+    for action in product(*(range(-bound, bound + 1) for bound in bounds)):
+        amounts = tuple(count * lot for count, lot in zip(action, lots))
+        holdings = tuple(asset + amount for asset, amount in zip(assets, amounts))
+        # минимум проверяем только при продаже
+        if any(
+            count < 0 and value < minimum
+            for count, value, minimum in zip(action, holdings, minimums)
+        ):
+            continue
+        commission = sum(abs(amount) * fee for amount, fee in zip(amounts, fees))
+        balance = cash - sum(amounts) - commission
+        if balance < 0:
+            continue
+        value = 0
+        for probability, multipliers in scenarios[stage]:
+            next_state = (*(asset * m for asset, m in zip(holdings, multipliers)), balance)
+            future, _ = exhaustive_portfolio(
+                stage + 1, next_state, lots, fees, minimums, scenarios
+            )
+            value += probability * future
+        if value > best_value:
+            best_value, best_actions = value, {action}
+        elif value == best_value:
+            best_actions.add(action)
+    return best_value, best_actions
+
+
+def test_bellman_matches_independent_exhaustive_search(monkeypatch):
+    """ сравниваем значения и управления с ручным расчетом и независимым перебором """
+    lots, fees, minimums = (4, 16, 16), (0.25,) * 3, (0,) * 3
+    scenarios = (
+        ((0.5, (2, 1, 1)), (0.5, (0.5, 1, 1))),
+        ((1, (0.5, 1, 1)),),
+        ((1, (1, 1, 1)),),
+    )
+    for name, value in (
+        ("LOTS", lots), ("FEES", fees), ("MIN_ASSETS", minimums),
+        ("SCENARIOS", scenarios), ("USE_PRUNING", True),
+    ):
+        monkeypatch.setattr(lab4, name, value)
+    lab4.bellman.cache_clear()
+    try:
+        for stage, state, expected, action in (
+            (0, (4, 0, 0, 0), 3.5, (0, 0, 0)),
+            (1, (8, 0, 0, 0), 6, (-2, 0, 0)),
+            (1, (2, 0, 0, 0), 1, (0, 0, 0)),
+            (2, (0, 0, 0, 6), 6, (0, 0, 0)),
+            (2, (1, 0, 0, 0), 1, (0, 0, 0)),
+        ):
+            reference = exhaustive_portfolio(stage, state, lots, fees, minimums, scenarios)
+            value, actions = lab4.bellman(stage, state)
+            assert (value, {u for u, _ in actions}) == reference == (expected, {action})
+    finally:
+        lab4.bellman.cache_clear()
+
+
+def test_one_asset_receives_the_entire_budget(monkeypatch):
+    """ при бюджете на один выгодный пакет все деньги уходят в один актив """
+    monkeypatch.setattr(lab4, "LOTS", (4, 16, 16))
+    monkeypatch.setattr(lab4, "FEES", (0.25,) * 3)
+    monkeypatch.setattr(lab4, "SCENARIOS", (
+        ((1, (1, 1, 1)),), ((1, (1, 1, 1)),), ((1, (2, 1, 1)),),
+    ))
+    value, actions = lab4.terminal_stage_value((0, 0, 0, 5))
+    assert value == 8
+    assert actions == (((1, 0, 0), (4, 0, 0, 0)),)
