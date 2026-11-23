@@ -6,6 +6,8 @@
 **Вариант** - 14  
 **Метод** - операторный гибрид PSO + SA
 
+[Рефлексивный вывод](https://drive.google.com/file/d/1mcNmC70Ucj4PkIW1hdIdTijlAGVFeGdp/view?usp=drivesdk)
+
 Самостоятельные задания и вопросы по методам выполнены в [EXERCISES.md](EXERCISES.md).
 
 ## 1. Постановка задачи и тестовая функция
